@@ -1,0 +1,22 @@
+services:
+  bot:
+    build: .
+    container_name: qq-bot
+    env_file:
+      - .env
+    environment:
+      DATA_PATH: /data/bot.db
+      GOMEMLIMIT: ${GOMEMLIMIT:-64MiB}
+      GOGC: ${GOGC:-50}
+      GOMAXPROCS: ${GOMAXPROCS:-2}
+    ports:
+      - "127.0.0.1:${HEALTH_HOST_PORT:-18080}:8080"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
