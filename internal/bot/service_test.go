@@ -93,10 +93,10 @@ func lastReply(t *testing.T, api *fakeQQ) string {
 	return api.messages[len(api.messages)-1]
 }
 
-func TestOnlyThreeRootCommands(t *testing.T) {
+func TestOnlySupportedRootCommands(t *testing.T) {
 	s, storage, api := testService(t)
 	for _, command := range []string{
-		"/bind 1", "/unbind", "/whoami", "/chat hello", "/llm_config show",
+		"/bind 1", "/unbind", "/chat hello", "/llm_config show",
 		"/checkin", "/me", "/usage", "/logs", "/models", "/credit", "/plan",
 		"/hongbao", "/reset", "/admin", "/welcome", "/join", "/mute", "/recall",
 		"/bot status", "/vendor_status", "/vendor_config", "/vendor_subscribe",
@@ -121,7 +121,7 @@ func TestOnlyThreeRootCommands(t *testing.T) {
 	}
 	s.process(context.Background(), groupEvent("g", "ordinary", "/help"))
 	text := lastReply(t, api)
-	for _, command := range []string{"/help", "/rss", "/llm"} {
+	for _, command := range []string{"/help", "/whoami", "/rss", "/llm"} {
 		if !strings.Contains(text, command) {
 			t.Fatal(text)
 		}
@@ -129,6 +129,35 @@ func TestOnlyThreeRootCommands(t *testing.T) {
 	for _, entry := range commandHelpEntries() {
 		if !supportedCommand(entry.path) {
 			t.Fatal("obsolete command in help", entry)
+		}
+	}
+}
+
+func TestWhoAmIShowsContextSpecificOpenIDs(t *testing.T) {
+	s, _, api := testService(t)
+	private := c2cEvent("user-openid-1", "/whoami")
+	private.Message.Author.UnionOpenID = "union-openid-1"
+	s.process(context.Background(), private)
+	privateReply := lastReply(t, api)
+	if !strings.Contains(privateReply, "用户 OpenID：user-openid-1") ||
+		!strings.Contains(privateReply, "Union OpenID：union-openid-1") ||
+		strings.Contains(privateReply, "群 OpenID：") {
+		t.Fatal(privateReply)
+	}
+
+	group := groupEvent("group-openid-1", "member-openid-1", "/whoami")
+	group.Message.Author.UserOpenID = "user-openid-2"
+	group.Message.Author.UnionOpenID = "union-openid-2"
+	s.process(context.Background(), group)
+	groupReply := lastReply(t, api)
+	for _, expected := range []string{
+		"用户 OpenID：user-openid-2",
+		"当前群成员 OpenID：member-openid-1",
+		"群 OpenID：group-openid-1",
+		"Union OpenID：union-openid-2",
+	} {
+		if !strings.Contains(groupReply, expected) {
+			t.Fatal(groupReply)
 		}
 	}
 }

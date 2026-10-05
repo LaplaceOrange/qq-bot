@@ -16,6 +16,7 @@ type helpEntry struct {
 func commandHelpEntries() []helpEntry {
 	return []helpEntry{
 		{"/help", "", "查看命令帮助", false, false},
+		{"/whoami", "", "查看当前用户及群聊 OpenID", false, false},
 		{"/rss list", "", "列出当前群订阅", false, false},
 		{"/rss status", "", "查看检查结果和待发送数量", false, false},
 		{"/rss add", "<URL>", "添加订阅，只推送后续新文章", true, true},
@@ -38,7 +39,7 @@ func commandHelpEntries() []helpEntry {
 func (s *Service) helpTextFor(identity model.QQIdentity, parent string) string {
 	parent = strings.ToLower(strings.Join(strings.Fields(parent), " "))
 	if parent == "" {
-		return "可用命令：\n/help - 查看帮助\n/rss - 管理群 RSS/Atom 订阅\n/llm - 与模型对话\n详细用法：/rss help、/llm help"
+		return "可用命令：\n/help - 查看命令帮助\n/whoami - 查看当前 OpenID\n/rss - 管理群 RSS/Atom 订阅\n/llm - 与模型对话\n详细用法：/rss help、/llm help"
 	}
 	lines := []string{parent + " 帮助："}
 	for _, entry := range commandHelpEntries() {

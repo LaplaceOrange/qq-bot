@@ -164,7 +164,7 @@ func supportedCommand(content string) bool {
 		return false
 	}
 	switch strings.ToLower(fields[0]) {
-	case "/help", "/rss", "/llm":
+	case "/help", "/whoami", "/rss", "/llm":
 		return true
 	default:
 		return false
@@ -228,6 +228,12 @@ func (s *Service) process(parent context.Context, event qq.MessageEvent) {
 			err = s.reply(ctx, event, "正确用法：/help")
 		} else {
 			err = s.replyHelp(ctx, event, s.helpTextFor(identity, ""))
+		}
+	case "/whoami":
+		if len(fields) != 1 {
+			err = s.reply(ctx, event, "正确用法：/whoami")
+		} else {
+			err = s.handleWhoAmI(ctx, event, identity)
 		}
 	case "/rss":
 		if len(fields) > 1 && strings.EqualFold(fields[len(fields)-1], "help") {

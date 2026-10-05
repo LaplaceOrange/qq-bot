@@ -1,6 +1,6 @@
 # QQ Bot
 
-基于 QQ 官方机器人接口的 Go 服务。代码从 `new-api-bot` 精简而来，只保留 `/help`、`/rss` 和 `/llm` 三个一级命令。
+基于 QQ 官方机器人接口的 Go 服务。代码从 `new-api-bot` 精简而来，只保留 `/help`、`/whoami`、`/rss` 和 `/llm` 四个一级命令。
 
 机器人通过 WebSocket Gateway 接收消息，不需要配置公网回调地址。服务使用 bbolt 保存订阅、消息队列和会话。LLM 配置、任务内容和历史记录使用 `BOT_DATA_KEY` 加密。
 
@@ -76,19 +76,28 @@ docker compose down
 
 ## 命令
 
-只有以下三个一级命令可用。旧命令和普通文本消息不会触发处理。群内使用时，可先 @机器人，再输入命令。
+只有以下四个一级命令可用。旧命令和普通文本消息不会触发处理。群内使用时，可先 @机器人，再输入命令。
 
 ### `/help`
 
 ```text
 /help
+/whoami
 /rss help
 /rss add help
 /llm help
 /llm config help
 ```
 
-`/help` 显示三个一级命令。详细帮助按当前身份的权限显示子命令。
+`/help` 显示四个一级命令。详细帮助按当前身份的权限显示子命令。
+
+### `/whoami`
+
+```text
+/whoami
+```
+
+私聊时显示当前用户的 `user_openid` 和可用的 `union_openid`。群聊时显示事件提供的 `user_openid`、当前群成员 `member_openid`、`group_openid` 和可用的 `union_openid`。群聊事件未提供 `user_openid` 时，仍会显示成员 OpenID 和群 OpenID。
 
 ### `/rss`
 

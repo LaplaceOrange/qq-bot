@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"strings"
 
 	"unicode"
@@ -22,6 +23,39 @@ func commandRuleActor(identity model.QQIdentity) string {
 		return candidates[0]
 	}
 	return "unknown"
+}
+
+func (s *Service) handleWhoAmI(ctx context.Context, event qq.MessageEvent, identity model.QQIdentity) error {
+	userOpenID := firstNonEmpty(identity.UserOpenID, event.Message.Author.ID)
+	if event.EventType == "C2C_MESSAGE_CREATE" {
+		if userOpenID == "" {
+			return s.reply(ctx, event, "当前消息未包含用户 OpenID。")
+		}
+		lines := []string{"用户 OpenID：" + userOpenID}
+		if identity.UnionOpenID != "" {
+			lines = append(lines, "Union OpenID："+identity.UnionOpenID)
+		}
+		return s.reply(ctx, event, strings.Join(lines, "\n"))
+	}
+	groupOpenID := firstNonEmpty(identity.GroupOpenID, event.Member.GroupOpenID)
+	memberOpenID := firstNonEmpty(identity.MemberOpenID, event.Member.MemberOpenID, event.Message.Author.ID)
+	if groupOpenID == "" && memberOpenID == "" && userOpenID == "" {
+		return s.reply(ctx, event, "当前消息未包含用户或群聊 OpenID。")
+	}
+	lines := []string{}
+	if userOpenID != "" {
+		lines = append(lines, "用户 OpenID："+userOpenID)
+	}
+	if memberOpenID != "" {
+		lines = append(lines, "当前群成员 OpenID："+memberOpenID)
+	}
+	if groupOpenID != "" {
+		lines = append(lines, "群 OpenID："+groupOpenID)
+	}
+	if identity.UnionOpenID != "" {
+		lines = append(lines, "Union OpenID："+identity.UnionOpenID)
+	}
+	return s.reply(ctx, event, strings.Join(lines, "\n"))
 }
 
 func llmIdentity(event qq.MessageEvent) string {
