@@ -57,35 +57,45 @@ func llmDay(now time.Time) string {
 }
 
 func (s *Service) handleChat(ctx context.Context, event qq.MessageEvent, content string) error {
+	return s.handleLLMInput(ctx, event, commandRuleTail(content), true)
+}
+
+func (s *Service) handleLLMPrompt(ctx context.Context, event qq.MessageEvent, prompt string) error {
+	return s.handleLLMInput(ctx, event, prompt, false)
+}
+
+// Only explicit /llm commands may change settings or interpret subcommands.
+func (s *Service) handleLLMInput(ctx context.Context, event qq.MessageEvent, tail string, command bool) error {
 	identity := identityFromEvent(event)
-	tail := commandRuleTail(content)
-	switch strings.ToLower(tail) {
-	case "help":
-		return s.replyHelp(ctx, event, s.helpTextFor(identity, "/llm")+"\n"+llmConfigKeyHelp())
-	case "on help", "off help", "status help", "reset help":
-		return s.replyHelp(ctx, event, s.helpTextFor(identity, "/llm "+strings.ToLower(strings.Fields(tail)[0])))
-	case "on", "off":
-		if !s.isAdmin(identity) || s.isReadOnlyAdmin(identity) {
-			return s.reply(ctx, event, "仅可写 Bot 管理员可开启或关闭群对话。")
-		}
-		group := event.Message.GroupOpenID
-		if group == "" {
-			return s.reply(ctx, event, "该指令只能在群聊中使用。")
-		}
-		enabled := strings.EqualFold(tail, "on")
-		if err := s.store.SetLLMGroup(group, enabled, s.now()); err != nil {
-			return s.reply(ctx, event, "保存群对话设置失败。")
-		}
-		if !enabled {
-			s.llmMu.Lock()
-			if cancel := s.llmActive[s.llmSessionKey(event, "")]; cancel != nil {
-				cancel()
+	if command {
+		switch strings.ToLower(tail) {
+		case "help":
+			return s.replyHelp(ctx, event, s.helpTextFor(identity, "/llm")+"\n"+llmConfigKeyHelp())
+		case "on help", "off help", "status help", "reset help":
+			return s.replyHelp(ctx, event, s.helpTextFor(identity, "/llm "+strings.ToLower(strings.Fields(tail)[0])))
+		case "on", "off":
+			if !s.isAdmin(identity) || s.isReadOnlyAdmin(identity) {
+				return s.reply(ctx, event, "仅可写 Bot 管理员可开启或关闭群对话。")
 			}
-			s.llmMu.Unlock()
+			group := event.Message.GroupOpenID
+			if group == "" {
+				return s.reply(ctx, event, "该指令只能在群聊中使用。")
+			}
+			enabled := strings.EqualFold(tail, "on")
+			if err := s.store.SetLLMGroup(group, enabled, s.now()); err != nil {
+				return s.reply(ctx, event, "保存群对话设置失败。")
+			}
+			if !enabled {
+				s.llmMu.Lock()
+				if cancel := s.llmActive[s.llmSessionKey(event, "")]; cancel != nil {
+					cancel()
+				}
+				s.llmMu.Unlock()
+			}
+			_ = s.store.AddAudit(model.AuditRecord{At: s.now(), Actor: commandRuleActor(identity), Action: "llm.group", Target: group, Success: true, Metadata: map[string]any{"enabled": enabled}})
+			s.wakeLLM()
+			return s.reply(ctx, event, "当前群对话已"+map[bool]string{true: "开启", false: "关闭"}[enabled]+"；全局启用及接口配置也需有效。")
 		}
-		_ = s.store.AddAudit(model.AuditRecord{At: s.now(), Actor: commandRuleActor(identity), Action: "llm.group", Target: group, Success: true, Metadata: map[string]any{"enabled": enabled}})
-		s.wakeLLM()
-		return s.reply(ctx, event, "当前群对话已"+map[bool]string{true: "开启", false: "关闭"}[enabled]+"；全局启用及接口配置也需有效。")
 	}
 	canonical := llmIdentity(event)
 	if canonical == "" {
@@ -95,7 +105,7 @@ func (s *Service) handleChat(ctx context.Context, event qq.MessageEvent, content
 	if err != nil {
 		return s.reply(ctx, event, "LLM 配置读取失败。")
 	}
-	if strings.EqualFold(tail, "status") {
+	if command && strings.EqualFold(tail, "status") {
 		enabled := cfg.Enabled
 		if event.Message.GroupOpenID != "" {
 			groupEnabled, e := s.store.LLMGroupEnabled(event.Message.GroupOpenID)
@@ -110,7 +120,7 @@ func (s *Service) handleChat(ctx context.Context, event qq.MessageEvent, content
 		}
 		return s.reply(ctx, event, fmt.Sprintf("对话开启：%t\n接口就绪：%t\n模型：%s\n搜索后端：%s\n每日剩余：%d\n最近一分钟剩余：%d", enabled, cfg.Ready(), nonEmpty(cfg.Model, "未配置"), cfg.SearchBackend, max(0, cfg.DailyLimit-rate.Count), max(0, cfg.MinuteLimit-len(rate.Recent))))
 	}
-	if strings.EqualFold(tail, "reset") {
+	if command && strings.EqualFold(tail, "reset") {
 		if event.Message.GroupOpenID != "" && (!s.isAdmin(identity) || s.isReadOnlyAdmin(identity)) {
 			return s.reply(ctx, event, "仅可写 Bot 管理员可清空群共享历史。")
 		}
@@ -119,7 +129,7 @@ func (s *Service) handleChat(ctx context.Context, event qq.MessageEvent, content
 		}
 		return s.reply(ctx, event, "当前会话历史已清空。")
 	}
-	if tail == "" {
+	if command && tail == "" {
 		return s.reply(ctx, event, "用法：/llm <内容>；/llm help")
 	}
 	if len(tail) > maxCommandBytes {
@@ -133,6 +143,9 @@ func (s *Service) handleChat(ctx context.Context, event qq.MessageEvent, content
 		if e != nil || !enabled {
 			return s.reply(ctx, event, "当前群未开启对话，请管理员使用 /llm on。")
 		}
+	}
+	if tail == "" {
+		return s.reply(ctx, event, "我在，请告诉我你的问题。")
 	}
 	if event.Message.ID == "" {
 		return s.reply(ctx, event, "当前消息缺少唯一标识，请重新发送。")

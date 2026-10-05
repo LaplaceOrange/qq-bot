@@ -176,13 +176,12 @@ func (s *Service) HandleGateway(ctx context.Context, event qq.MessageEvent) bool
 		return true
 	}
 	content, accepted := qq.ChatContent(event, s.cfg.QQAppID)
-	if !accepted || !supportedCommand(content) {
+	if !accepted || strings.HasPrefix(content, "/") && !supportedCommand(content) {
 		return true
 	}
 	if event.ReceivedAt.IsZero() {
 		event.ReceivedAt = s.now()
 	}
-	event.Message.Content = content
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return false
@@ -205,11 +204,21 @@ func (s *Service) HandleGateway(ctx context.Context, event qq.MessageEvent) bool
 
 func (s *Service) process(parent context.Context, event qq.MessageEvent) {
 	content, accepted := qq.ChatContent(event, s.cfg.QQAppID)
-	if !accepted || !supportedCommand(content) {
+	if !accepted || strings.HasPrefix(content, "/") && !supportedCommand(content) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(parent, s.cfg.RSSHTTPTimeout+2*s.cfg.QQAPITimeout)
 	defer cancel()
+	if !strings.HasPrefix(content, "/") {
+		if len(content) > maxCommandBytes {
+			_ = s.reply(ctx, event, "对话内容不能超过 4096 字节。")
+			return
+		}
+		if err := s.handleLLMPrompt(ctx, event, content); err != nil {
+			s.logger.Error("处理 QQ @对话失败")
+		}
+		return
+	}
 	fields := strings.Fields(content)
 	command := strings.ToLower(fields[0])
 	limit := maxCommandBytes

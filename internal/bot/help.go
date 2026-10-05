@@ -25,7 +25,7 @@ func commandHelpEntries() []helpEntry {
 		{"/rss resume", "<编号>", "恢复订阅，不补发暂停期间的文章", true, true},
 		{"/rss interval", "<时长>", "设置本群检查间隔，1m 至 24h", true, true},
 		{"/rss check", "<编号>", "检查订阅源，不改变推送进度", true, false},
-		{"/llm", "<内容>", "与模型对话，无需账户绑定", false, false},
+		{"/llm", "<内容>", "与模型对话，群内也可 @机器人提问", false, false},
 		{"/llm status", "", "查看配置状态和本人剩余次数", false, false},
 		{"/llm reset", "", "清空当前历史，群聊需可写管理员", false, false},
 		{"/llm on", "", "开启当前群对话", true, true},
@@ -39,7 +39,7 @@ func commandHelpEntries() []helpEntry {
 func (s *Service) helpTextFor(identity model.QQIdentity, parent string) string {
 	parent = strings.ToLower(strings.Join(strings.Fields(parent), " "))
 	if parent == "" {
-		return "可用命令：\n/help - 查看命令帮助\n/whoami - 查看当前 OpenID\n/rss - 管理群 RSS/Atom 订阅\n/llm - 与模型对话\n详细用法：/rss help、/llm help"
+		return "可用命令：\n/help - 查看命令帮助\n/whoami - 查看当前 OpenID\n/rss - 管理群 RSS/Atom 订阅\n/llm - 与模型对话，群内也可 @机器人提问\n详细用法：/rss help、/llm help"
 	}
 	lines := []string{parent + " 帮助："}
 	for _, entry := range commandHelpEntries() {

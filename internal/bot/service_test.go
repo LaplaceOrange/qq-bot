@@ -109,7 +109,6 @@ func TestOnlySupportedRootCommands(t *testing.T) {
 		s.process(context.Background(), event)
 	}
 	event := groupEvent("g", "admin", "plain text")
-	event.EventType = "GROUP_AT_MESSAGE_CREATE"
 	s.HandleGateway(context.Background(), event)
 	s.process(context.Background(), event)
 	if len(api.messages) != 0 {
