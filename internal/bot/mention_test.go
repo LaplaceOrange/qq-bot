@@ -11,7 +11,7 @@ import (
 )
 
 func TestMentionEntersLLMThroughDurableInbox(t *testing.T) {
-	for _, kind := range []string{"literal", "mentions", "at-event"} {
+	for _, kind := range []string{"literal", "mentions", "self-marker", "at-event"} {
 		t.Run(kind, func(t *testing.T) {
 			s, client, api := setupLLM(t)
 			if err := s.store.SetLLMGroup("g", true, time.Now()); err != nil {
@@ -24,6 +24,8 @@ func TestMentionEntersLLMThroughDurableInbox(t *testing.T) {
 				event.Message.Content = "<@!app> " + prompt
 			case "mentions":
 				event.Message.Mentions = []qq.MessageAuthor{{ID: "app", Bot: true}}
+			case "self-marker":
+				event.Message.Mentions = []qq.MessageAuthor{{MemberOpenID: "bot-openid", IsYou: true}}
 			case "at-event":
 				event.EventType = "GROUP_AT_MESSAGE_CREATE"
 			}

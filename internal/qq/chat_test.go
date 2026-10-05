@@ -19,6 +19,10 @@ func TestChatContent(t *testing.T) {
 		{"other mention", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{ID: "other"}}, false, false, "hello"},
 		{"other bot", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{ID: "other", Bot: true}}, false, false, "hello"},
 		{"our mention", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{ID: "bot", Bot: true}}, false, true, "hello"},
+		{"self marker with openid", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{MemberOpenID: "bot-member-openid", IsYou: true}}, false, true, "hello"},
+		{"self marker without bot flag", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{ID: "not-appid", IsYou: true}}, false, true, "hello"},
+		{"self marker strips openid prefix", "GROUP_MESSAGE_CREATE", "<@!bot-openid> hello", []MessageAuthor{{MemberOpenID: "bot-openid", IsYou: true}}, false, true, "hello"},
+		{"other marker with bot flag", "GROUP_MESSAGE_CREATE", "hello", []MessageAuthor{{MemberOpenID: "other-bot-openid", Bot: true}}, false, false, "hello"},
 		{"literal mention", "GROUP_MESSAGE_CREATE", "<@!bot> hello", nil, false, true, "hello"},
 		{"legacy at", "GROUP_AT_MESSAGE_CREATE", "<@!bot> hello", nil, false, true, "hello"},
 		{"mention command", "GROUP_MESSAGE_CREATE", "<@bot> /me", nil, false, true, "/me"},
@@ -34,6 +38,33 @@ func TestChatContent(t *testing.T) {
 				t.Fatal(got, accepted)
 			}
 		})
+	}
+}
+
+func TestChatContentDecodesQQSelfMention(t *testing.T) {
+	var message Message
+	if err := json.Unmarshal([]byte(`{
+		"id":"message",
+		"group_openid":"group",
+		"author":{"member_openid":"user"},
+		"content":"你好",
+		"mentions":[{"scope":"single","member_openid":"bot-openid","is_you":true}]
+	}`), &message); err != nil {
+		t.Fatal(err)
+	}
+	event := MessageEvent{EventType: "GROUP_MESSAGE_CREATE", Message: message}
+	content, accepted := ChatContent(event, "")
+	if content != "你好" || !accepted || !message.Mentions[0].IsYou {
+		t.Fatal(content, accepted, message.Mentions)
+	}
+	data, err := json.Marshal(event)
+	var replay MessageEvent
+	if err != nil || json.Unmarshal(data, &replay) != nil {
+		t.Fatal("message cannot be persisted", err)
+	}
+	content, accepted = ChatContent(replay, "appid-not-openid")
+	if content != "你好" || !accepted {
+		t.Fatal("self marker lost during replay", content, accepted)
 	}
 }
 

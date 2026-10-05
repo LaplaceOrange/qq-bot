@@ -162,6 +162,7 @@ type MessageAuthor struct {
 	ID             string `json:"id"`
 	Username       string `json:"username"`
 	Bot            bool   `json:"bot"`
+	IsYou          bool   `json:"is_you,omitempty"`
 	UnionOpenID    string `json:"union_openid"`
 	UserOpenID     string `json:"user_openid"`
 	MemberOpenID   string `json:"member_openid"`

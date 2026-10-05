@@ -176,6 +176,22 @@ func (s *Service) HandleGateway(ctx context.Context, event qq.MessageEvent) bool
 		return true
 	}
 	content, accepted := qq.ChatContent(event, s.cfg.QQAppID)
+	selfMentions := 0
+	for _, mention := range event.Message.Mentions {
+		if mention.IsYou {
+			selfMentions++
+		}
+	}
+	s.logger.Debug("QQ 消息路由判定",
+		"event", event.EventType,
+		"accepted", accepted,
+		"supported_command", supportedCommand(content),
+		"group_present", event.Message.GroupOpenID != "",
+		"mention_count", len(event.Message.Mentions),
+		"self_mention_count", selfMentions,
+		"bot_author", event.Message.Author.Bot,
+		"content_bytes", len(content),
+	)
 	if !accepted || strings.HasPrefix(content, "/") && !supportedCommand(content) {
 		return true
 	}

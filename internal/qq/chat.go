@@ -13,8 +13,8 @@ var leadingBotMention = regexp.MustCompile(`^<@!?([^>]+)>\s*`)
 // ChatContent distinguishes the at-only event from the all-message group
 // event. Official GROUP_MESSAGE_CREATE can strip the bot prefix and exclude
 // the bot from mentions; without explicit addressing evidence, only commands
-// are accepted. Other users' mentions are not evidence of addressing our bot.
-// QQAppID is the bot identity according to the official AppID contract.
+// are accepted. is_you is QQ's authoritative self-mention marker; other
+// users' mentions are not evidence of addressing our bot.
 func ChatContent(event MessageEvent, appID string) (string, bool) {
 	if event.Message.Author.Bot {
 		return "", false
@@ -22,7 +22,7 @@ func ChatContent(event MessageEvent, appID string) (string, bool) {
 	content := strings.TrimSpace(event.Message.Content)
 	at := event.EventType == "GROUP_AT_MESSAGE_CREATE"
 	for _, m := range event.Message.Mentions {
-		if m.Bot && appID != "" && (m.ID == appID || m.UserOpenID == appID || m.MemberOpenID == appID) {
+		if m.IsYou || m.Bot && appID != "" && (m.ID == appID || m.UserOpenID == appID || m.MemberOpenID == appID) {
 			at = true
 		}
 	}
